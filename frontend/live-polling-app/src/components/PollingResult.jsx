@@ -1,28 +1,30 @@
 import React, { useState, useEffect } from "react";
 import { ProgressBar } from "react-bootstrap";
 import { getVariant } from "../utils/util";
-
 import tower from "../assets/tower-icon.png";
 
 const PollingResult = ({ socket }) => {
   const [currentQuestion, setCurrentQuestion] = useState(null);
 
+  // Handle new question
   const handleNewQuestion = (question) => {
-    // Ensure results object exists
-    if (!question.results) {
-      question.results = {};
-      question.options.forEach((option) => {
-        question.results[option] = 0;
-      });
-    }
     setCurrentQuestion(question);
+  };
+
+  // Handle polling results update
+  const handlePollingResults = (results) => {
+    setCurrentQuestion((prev) =>
+      prev ? { ...prev, results, answered: true } : prev
+    );
   };
 
   useEffect(() => {
     socket.on("new-question", handleNewQuestion);
+    socket.on("polling-results", handlePollingResults);
 
     return () => {
       socket.off("new-question", handleNewQuestion);
+      socket.off("polling-results", handlePollingResults);
     };
   }, [socket]);
 
@@ -34,17 +36,17 @@ const PollingResult = ({ socket }) => {
       </h2>
       <div className="gap-y-4 gap-x-4 border-t border-[#6edff6] w-full">
         {currentQuestion &&
-          currentQuestion.options.map((option) => (
+          Object.entries(currentQuestion.results || {}).map(([option, value]) => (
             <div key={option} className="m-4">
               <ProgressBar
-                now={parseInt(currentQuestion.results[option] ?? 0)}
+                now={parseInt(value) ?? 0}
                 label={
                   <span className="text-xl text-black font-semibold">
-                    {option} {parseInt(currentQuestion.results[option] ?? 0)}%
+                    {option} {parseInt(value)}%
                   </span>
                 }
-                variant={getVariant(parseInt(currentQuestion.results[option] ?? 0))}
-                animated={getVariant(parseInt(currentQuestion.results[option] ?? 0)) !== "success"}
+                variant={getVariant(parseInt(value))}
+                animated={getVariant(parseInt(value)) !== "success"}
               />
             </div>
           ))}
