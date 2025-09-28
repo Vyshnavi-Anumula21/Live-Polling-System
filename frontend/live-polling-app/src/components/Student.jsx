@@ -11,7 +11,8 @@ const Student = ({ socket }) => {
   const [selectedOption, setSelectedOption] = useState("");
   const [connectedStudents, setConnectedStudents] = useState([]);
   const [votingValidation, setVotingValidation] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0); // ⏳ countdown state
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [timeUp, setTimeUp] = useState(false);
 
   // On mount
   useEffect(() => {
@@ -33,7 +34,8 @@ const Student = ({ socket }) => {
         setCurrentQuestion(question);
         setShowQuestion(true);
         setSelectedOption("");
-        setTimeLeft(question.timer || 60); // ⏳ initialize timer
+        setTimeLeft(60); // reset timer for each new question
+        setTimeUp(false);
       }
     };
 
@@ -41,7 +43,6 @@ const Student = ({ socket }) => {
       setCurrentQuestion((prev) =>
         prev ? { ...prev, results, answered: true } : prev
       );
-      setTimeLeft(0); // stop timer once results are in
     };
 
     const handleStudentVoteValidation = (students) => {
@@ -59,20 +60,23 @@ const Student = ({ socket }) => {
     };
   }, [socket]);
 
-  // Countdown effect
+  // Timer countdown
   useEffect(() => {
-    if (timeLeft > 0) {
-      const timerId = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(timerId);
-    } else if (timeLeft === 0 && currentQuestion && !currentQuestion.answered) {
-      // Time's up → force results
-      setCurrentQuestion((prev) =>
-        prev ? { ...prev, answered: true } : prev
-      );
-    }
-  }, [timeLeft, currentQuestion]);
+    if (timeLeft === null || timeLeft <= 0) return;
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setTimeUp(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timeLeft]);
 
   const handleSubmit = () => {
     if (!name) return;
@@ -84,6 +88,7 @@ const Student = ({ socket }) => {
   const handlePolling = () => {
     if (!selectedOption) return;
     socket.emit("handle-polling", { option: selectedOption });
+    setTimeUp(true); // once student answers, stop accepting further input
   };
 
   // Update votingValidation
@@ -98,17 +103,15 @@ const Student = ({ socket }) => {
         <div className="w-full border border-[#6edff6] bg-[#134652]">
           <h1 className="text-center text-3xl font-bold">Welcome, {name}</h1>
           {currentQuestion ? (
-            !currentQuestion.answered || !votingValidation ? (
+            !currentQuestion.answered && !votingValidation && !timeUp ? (
               <div className="gap-y-4 gap-x-4 border-t border-[#6edff6] ml-0 md:ml-4 p-12">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold">
                     Question: {currentQuestion.question}
                   </h2>
-                  {timeLeft > 0 && (
-                    <span className="text-lg font-semibold text-red-400">
-                      ⏳ {timeLeft}s left
-                    </span>
-                  )}
+                  <span className="text-lg font-semibold text-red-400">
+                    Time Left: {timeLeft}s
+                  </span>
                 </div>
                 {currentQuestion.options.map((option, index) => (
                   <div
@@ -118,7 +121,7 @@ const Student = ({ socket }) => {
                         ? "border-2 border-green-500"
                         : "border border-[#6edff6]"
                     } justify-between my-4 h-6 p-4 cursor-pointer items-center rounded-md`}
-                    onClick={() => setSelectedOption(option)}
+                    onClick={() => !timeUp && setSelectedOption(option)}
                   >
                     {option}
                   </div>
@@ -127,7 +130,7 @@ const Student = ({ socket }) => {
                   className="h-10 bg-green-600 w-1/5 rounded-lg font-semibold"
                   variant="primary"
                   onClick={handlePolling}
-                  disabled={!selectedOption}
+                  disabled={!selectedOption || timeUp}
                 >
                   Submit
                 </Button>
