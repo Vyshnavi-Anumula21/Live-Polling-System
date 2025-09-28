@@ -23,14 +23,19 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "https://live-polling-app.onrender.com/",
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
 
-server.listen(3001, () => {
-  console.log("server is running");
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
+
+/*server.listen(3001, () => {
+  console.log("server is running");
+});*/
 
 let currentQuestion = {};
 const connectedStudents = new Map();
