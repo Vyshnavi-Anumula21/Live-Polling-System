@@ -3,25 +3,19 @@ const app = express();
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const path = require("path");
 
 app.use(cors());
 
-// Deployment setup
-const __dirname1 = path.resolve(__dirname, "dist");
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(__dirname1));
-  app.get("*", (req, res) => {
-    const indexFile = path.join(__dirname1, "index.html");
-    res.sendFile(indexFile);
-  });
-}
+// Simple route to show backend is running
+app.get("/", (req, res) => {
+  res.send("Backend is running. Socket server is ready.");
+});
 
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "https://live-polling-system-frontend-6kur.onrender.com",
+    origin: "https://live-polling-system-frontend-6kur.onrender.com", // your frontend URL
     methods: ["GET", "POST"],
   },
 });
@@ -31,10 +25,12 @@ server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
+// --- Polling logic ---
 let currentQuestion = null;
 const connectedStudents = new Map();
 
 io.on("connection", (socket) => {
+  console.log(`User connected: ${socket.id}`);
 
   socket.on("teacher-ask-question", (questionData) => {
     const question = {
@@ -58,7 +54,8 @@ io.on("connection", (socket) => {
     // Auto-compute results after timer
     setTimeout(() => {
       if (!currentQuestion.answered) {
-        const totalResponses = Object.values(currentQuestion.optionsFrequency).reduce((a, b) => a + b, 0) || 1;
+        const totalResponses =
+          Object.values(currentQuestion.optionsFrequency).reduce((a, b) => a + b, 0) || 1;
         Object.keys(currentQuestion.optionsFrequency).forEach((option) => {
           currentQuestion.results[option] =
             (currentQuestion.optionsFrequency[option] / totalResponses) * 100;
@@ -73,7 +70,8 @@ io.on("connection", (socket) => {
     if (currentQuestion && currentQuestion.options.includes(option)) {
       currentQuestion.optionsFrequency[option] += 1;
 
-      const totalResponses = Object.values(currentQuestion.optionsFrequency).reduce((a, b) => a + b, 0) || 1;
+      const totalResponses =
+        Object.values(currentQuestion.optionsFrequency).reduce((a, b) => a + b, 0) || 1;
 
       Object.keys(currentQuestion.optionsFrequency).forEach((opt) => {
         currentQuestion.results[opt] =
@@ -87,7 +85,6 @@ io.on("connection", (socket) => {
         io.emit("student-vote-validation", [...connectedStudents.values()]);
       }
 
-      // Only update results, not emit new-question again
       io.emit("polling-results", currentQuestion.results);
     }
   });
@@ -100,7 +97,7 @@ io.on("connection", (socket) => {
       voted: false,
     };
     connectedStudents.set(socket.id, student);
-    console.log(`Student ${name} connected`);
+    console.log(`Student connected: ${name}`);
     io.emit("student-connected", Array.from(connectedStudents.values()));
 
     // If a question is active, send it immediately to the new student
@@ -110,7 +107,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected");
+    console.log(`User disconnected: ${socket.id}`);
     connectedStudents.delete(socket.id);
     io.emit("student-disconnected", Array.from(connectedStudents.values()));
   });
