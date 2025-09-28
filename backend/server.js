@@ -3,39 +3,34 @@ const app = express();
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const path = require("path");
 
 app.use(cors());
 
-// Deployment setup
-const __dirname1 = path.resolve(__dirname, "dist");
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(__dirname1));
-  app.get("*", (req, res) => {
-    const indexFile = path.join(__dirname1, "index.html");
-    res.sendFile(indexFile);
-  });
-}
+// --------------------- Backend server only ---------------------
+// We do NOT serve frontend UI from backend deployment
+// Frontend is hosted separately, backend only handles API/Socket.IO
 
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "https://live-polling-system-frontend-6kur.onrender.com",
+    origin: "https://live-polling-system-frontend-6kur.onrender.com", // frontend URL
     methods: ["GET", "POST"],
   },
 });
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Backend server is running on port ${PORT}`);
 });
 
+// --------------------- Socket.IO logic ---------------------
 let currentQuestion = null;
 const connectedStudents = new Map();
 
 io.on("connection", (socket) => {
 
+  // Teacher sends a new question
   socket.on("teacher-ask-question", (questionData) => {
     const question = {
       question: questionData.question,
@@ -53,9 +48,10 @@ io.on("connection", (socket) => {
 
     currentQuestion = question;
 
+    // Send question to all connected students
     io.emit("new-question", question);
 
-    // Auto-compute results after timer
+    // Auto-compute results after timer expires
     setTimeout(() => {
       if (!currentQuestion.answered) {
         const totalResponses = Object.values(currentQuestion.optionsFrequency).reduce((a, b) => a + b, 0) || 1;
@@ -69,6 +65,7 @@ io.on("connection", (socket) => {
     }, question.timer * 1000);
   });
 
+  // Student submits an answer
   socket.on("handle-polling", ({ option }) => {
     if (currentQuestion && currentQuestion.options.includes(option)) {
       currentQuestion.optionsFrequency[option] += 1;
@@ -87,11 +84,11 @@ io.on("connection", (socket) => {
         io.emit("student-vote-validation", [...connectedStudents.values()]);
       }
 
-      // Only update results, not emit new-question again
       io.emit("polling-results", currentQuestion.results);
     }
   });
 
+  // Student sets their name
   socket.on("student-set-name", ({ name }) => {
     if (!name) return;
     const student = {
@@ -109,6 +106,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Handle disconnect
   socket.on("disconnect", () => {
     console.log("User disconnected");
     connectedStudents.delete(socket.id);
