@@ -28,7 +28,7 @@ const App = () => {
         <div
           className="flex flex-col justify-center items-center w-full"
         >
-          <h1 className="text-4xl font-bold">Select what type of user you are?</h1>
+          <h1 className="text-4xl font-bold">Live Polling System</h1>
           <div
             className="flex justify-between w-1/2  p-2 mt-10"
           >

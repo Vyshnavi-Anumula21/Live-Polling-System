@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import 'bootstrap/dist/css/bootstrap.min.css';
+import "bootstrap/dist/css/bootstrap.min.css";
 import { ProgressBar, Button } from "react-bootstrap";
 import tower from "../assets/tower-icon.png";
 import { getVariant } from "../utils/util";
@@ -11,6 +11,7 @@ const Student = ({ socket }) => {
   const [selectedOption, setSelectedOption] = useState("");
   const [connectedStudents, setConnectedStudents] = useState([]);
   const [votingValidation, setVotingValidation] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0); // ⏳ countdown state
 
   // On mount
   useEffect(() => {
@@ -23,7 +24,6 @@ const Student = ({ socket }) => {
 
     const handleNewQuestion = (question) => {
       if (question) {
-        // Ensure results object exists
         if (!question.results) {
           question.results = {};
           question.options.forEach((option) => {
@@ -33,6 +33,7 @@ const Student = ({ socket }) => {
         setCurrentQuestion(question);
         setShowQuestion(true);
         setSelectedOption("");
+        setTimeLeft(question.timer || 60); // ⏳ initialize timer
       }
     };
 
@@ -40,6 +41,7 @@ const Student = ({ socket }) => {
       setCurrentQuestion((prev) =>
         prev ? { ...prev, results, answered: true } : prev
       );
+      setTimeLeft(0); // stop timer once results are in
     };
 
     const handleStudentVoteValidation = (students) => {
@@ -56,6 +58,21 @@ const Student = ({ socket }) => {
       socket.off("student-vote-validation", handleStudentVoteValidation);
     };
   }, [socket]);
+
+  // Countdown effect
+  useEffect(() => {
+    if (timeLeft > 0) {
+      const timerId = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timerId);
+    } else if (timeLeft === 0 && currentQuestion && !currentQuestion.answered) {
+      // Time's up → force results
+      setCurrentQuestion((prev) =>
+        prev ? { ...prev, answered: true } : prev
+      );
+    }
+  }, [timeLeft, currentQuestion]);
 
   const handleSubmit = () => {
     if (!name) return;
@@ -83,9 +100,16 @@ const Student = ({ socket }) => {
           {currentQuestion ? (
             !currentQuestion.answered || !votingValidation ? (
               <div className="gap-y-4 gap-x-4 border-t border-[#6edff6] ml-0 md:ml-4 p-12">
-                <h2 className="text-xl font-bold">
-                  Question: {currentQuestion.question}
-                </h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">
+                    Question: {currentQuestion.question}
+                  </h2>
+                  {timeLeft > 0 && (
+                    <span className="text-lg font-semibold text-red-400">
+                      ⏳ {timeLeft}s left
+                    </span>
+                  )}
+                </div>
                 {currentQuestion.options.map((option, index) => (
                   <div
                     key={index}
@@ -127,13 +151,17 @@ const Student = ({ socket }) => {
                         now={parseInt(currentQuestion.results[option] ?? 0)}
                         label={
                           <span className="text-xl text-black font-semibold">
-                            {option} {parseInt(currentQuestion.results[option] ?? 0)}%
+                            {option}{" "}
+                            {parseInt(currentQuestion.results[option] ?? 0)}%
                           </span>
                         }
-                        variant={getVariant(parseInt(currentQuestion.results[option] ?? 0))}
+                        variant={getVariant(
+                          parseInt(currentQuestion.results[option] ?? 0)
+                        )}
                         animated={
-                          getVariant(parseInt(currentQuestion.results[option] ?? 0)) !==
-                          "success"
+                          getVariant(
+                            parseInt(currentQuestion.results[option] ?? 0)
+                          ) !== "success"
                         }
                       />
                     </div>
@@ -149,7 +177,9 @@ const Student = ({ socket }) => {
         </div>
       ) : (
         <div className="flex w-full justify-center flex-col items-center gap-y-4">
-          <h2 className="text-2xl font-bold">Enter your name to participate in the contest</h2>
+          <h2 className="text-2xl font-bold">
+            Enter your name to participate in the contest
+          </h2>
           <input
             type="text"
             value={name}
