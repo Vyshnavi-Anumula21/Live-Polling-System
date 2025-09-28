@@ -5,7 +5,7 @@ import "../src/App.css";
 import Teacher from "./components/Teacher";
 import Student from "./components/Student";
 
-const socket = io.connect("https://live-polling-app.onrender.com/");
+const socket = io.connect("https://live-polling-system-backend-s0bk.onrender.com");
 //const socket = io("http://localhost:3001");
 
 
